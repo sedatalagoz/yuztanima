@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .navbar {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .stats-card {
+            border-left: 4px solid #667eea;
+        }
+        .photo-card {
+            transition: transform 0.2s;
+        }
+        .photo-card:hover {
+            transform: translateY(-5px);
+        }
+        .photo-img {
+            width: 100%;
+            height: 200px;
+            object-fit: cover;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-dark">
+        <div class="container-fluid">
+            <span class="navbar-brand mb-0 h1">📸 Ajans Fotoğraf Yönetimi</span>
+            <div>
+                <span class="text-white me-3">Admin: {{ session.admin }}</span>
+                <a href="{{ url_for('admin_logout') }}" class="btn btn-light btn-sm">Çıkış</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <!-- İstatistikler -->
+        <div class="row mb-4">
+            <div class="col-md-4">
+                <div class="card stats-card">
+                    <div class="card-body">
+                        <h5>📷 Toplam Fotoğraf</h5>
+                        <h2 id="totalPhotos">{{ photos|length }}</h2>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card stats-card">
+                    <div class="card-body">
+                        <h5>👥 Toplam Tarama</h5>
+                        <h2 id="totalSessions">-</h2>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card stats-card">
+                    <div class="card-body">
+                        <h5>✅ Toplam Eşleşme</h5>
+                        <h2 id="totalMatches">-</h2>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Fotoğraf Yükleme -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <h5 class="card-title">📤 Yeni Fotoğraf Yükle</h5>
+                <form id="uploadForm">
+                    <div class="mb-3">
+                        <input type="file" class="form-control" id="photoInput" 
+                               accept=".jpg,.jpeg,.png" multiple required>
+                        <small class="text-muted">Birden fazla fotoğraf seçebilirsiniz</small>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Yükle</button>
+                </form>
+                <div id="uploadStatus" class="mt-3"></div>
+            </div>
+        </div>
+
+        <!-- Fotoğraf Galerisi -->
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">🖼️ Fotoğraf Galerisi</h5>
+                <div class="row g-3" id="photoGallery">
+                    {% for photo in photos %}
+                    <div class="col-md-3" id="photo-{{ photo[0] }}">
+                        <div class="card photo-card">
+                            <img src="/{{ photo[2] }}" class="photo-img" alt="{{ photo[1] }}">
+                            <div class="card-body">
+                                <p class="card-text small mb-2">{{ photo[1] }}</p>
+                                <small class="text-muted d-block mb-2">{{ photo[3] }}</small>
+                                <button class="btn btn-danger btn-sm w-100" 
+                                        onclick="deletePhoto({{ photo[0] }})">
+                                    🗑️ Sil
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // İstatistikleri yükle
+        fetch('/admin/stats')
+            .then(r => r.json())
+            .then(data => {
+                document.getElementById('totalPhotos').textContent = data.total_photos;
+                document.getElementById('totalSessions').textContent = data.total_sessions;
+                document.getElementById('totalMatches').textContent = data.total_matches;
+            });
+
+        // Fotoğraf yükleme
+        document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = new FormData();
+            const files = document.getElementById('photoInput').files;
+            
+            for (let file of files) {
+                formData.append('photos', file);
+            }
+            
+            const statusDiv = document.getElementById('uploadStatus');
+            statusDiv.innerHTML = '<div class="alert alert-info">Yükleniyor...</div>';
+            
+            try {
+                const response = await fetch('/admin/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    statusDiv.innerHTML = `<div class="alert alert-success">${data.message}</div>`;
+                    setTimeout(() => location.reload(), 2000);
+                } else {
+                    statusDiv.innerHTML = `<div class="alert alert-danger">${data.error}</div>`;
+                }
+            } catch (error) {
+                statusDiv.innerHTML = `<div class="alert alert-danger">Hata: ${error.message}</div>`;
+            }
+        });
+
+        // Fotoğraf silme
+        async function deletePhoto(photoId) {
+            if (!confirm('Bu fotoğrafı silmek istediğinizden emin misiniz?')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/admin/delete/${photoId}`, {
+                    method: 'POST'
+                });
+                
+                if (response.ok) {
+                    document.getElementById(`photo-${photoId}`).remove();
+                }
+            } catch (error) {
+                alert('Silme hatası: ' + error.message);
+            }
+        }
+    </script>
+</body>
+</html>
